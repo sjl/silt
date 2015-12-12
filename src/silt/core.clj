@@ -1,6 +1,7 @@
 (ns silt.core
   (:require [lanterna.screen :as s]
             [roul.random :as rr]
+            [clojure.core.match :refer [match]]
             [clojure.stacktrace :refer [print-stack-trace]])
   (:gen-class))
 
@@ -36,6 +37,7 @@
 
 (def world-temp (ref 0))
 (def mutation-chance 10)
+(def reproduction-rate 5)
 
 (def animals (ref []))
 (def initial-animals 400)
@@ -112,8 +114,20 @@
                (normalize-world-coords [(+ x dx) (+ y dy)]))
              (rr/rand-nth directions)))
 
-(defn age [animal] animal)
-(defn try-reproduce [animal] animal)
+(defn age [animal]
+  (let [{:keys [age] :as animal} (update-in animal [:age] inc)]
+    (if (and (> age 50)
+             (rr/rand-bool (inc (/ (:age animal) 100))))
+      []
+      [animal])))
+
+(defn try-reproduce [animals]
+  (match animals
+    [] []
+    [animal] (if (and (can-reproduce animal)
+                      (rr/rand-bool reproduction-rate))
+               (reproduce animal)
+               animals)))
 
 (defn tick-animal [animal]
   (-> animal
@@ -122,8 +136,7 @@
     find-resources
     wander
     age
-    try-reproduce
-    vector))
+    try-reproduce))
 
 (defn tick-animals [animals]
   (vec (mapcat tick-animal animals)))
@@ -165,9 +178,13 @@
   (conj (for [_ (range initial-animals)]
           (-> eve
             clone
+            (assoc :energy 100)
             (assoc :loc (random-coord))))
         eve))
 
+
+(defn reset-window! []
+  (dosync (ref-set window-loc [0 0])))
 
 (defn reset-terrain! []
   (let [new-terrain (-> (generate-terrain)
@@ -225,6 +242,7 @@
     (draw-landmarks! screen)
     (put-right " SILT  " 0)
     (put-right (str @world-temp "° ") 1)
+    (put-right (str (count @animals) "  ") 2)
     (s/move-cursor screen (from-right screen 1) 0)
     (s/redraw screen)))
 
@@ -259,14 +277,32 @@
                    \9 10000))))
   nil)
 
+(defn reset-world! []
+  (reset-window!)
+  (reset-terrain!)
+  (reset-animals!))
+
 (defn handle-input! [screen]
   (while-let [key (s/get-key screen)]
     (case key
-      :escape (reset! running false)
-      (:up :down :left :right) (move-window! key 10)
-      (\h \j \k \l) (move-window! key)
-      \space (update-animals! \1)
-      (\1 \2 \3 \4 \5 \6 \7 \8 \9) (update-animals! key)
+      :escape
+      (reset! running false)
+
+      (:up :down :left :right)
+      (move-window! key 10)
+
+      (\h \j \k \l)
+      (move-window! key)
+
+      \space
+      (update-animals! \1)
+
+      (\1 \2 \3 \4 \5 \6 \7 \8 \9)
+      (update-animals! key)
+
+      \r
+      (reset-world!)
+
       nil)))
 
 
@@ -301,6 +337,7 @@
   (reset! running true)
   (dosync (ref-set world-temp 0))
 
+  (reset-window!)
   (reset-terrain!)
   (reset-animals!)
 
