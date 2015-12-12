@@ -13,6 +13,10 @@
 (def pond-count 100)
 (def pond-size 3)
 
+(def directions [[-1 -1] [ 0 -1] [ 1 -1]
+                 [-1  0] [ 0  0] [ 1  0]
+                 [-1  1] [ 0  1] [ 1  1]])
+
 (def screen (s/get-screen :swing))
 (defonce running (atom true))
 (def window-loc (ref [0 0]))
@@ -31,15 +35,20 @@
 
 
 (def world-temp (ref 0))
-(def mutation-chance 1)
+(def mutation-chance 10)
 
+(def animals (ref []))
+(def initial-animals 400)
 (def eve
   {:glyph "@"
    :styles {:fg :white}
    :temp 0
    :insulation 0
    :age 0
-   :energy 100.0})
+   :energy 100.0
+   :id "eve"
+   :loc [0 1]
+   })
 
 
 ; Utils -----------------------------------------------------------------------
@@ -69,8 +78,65 @@
        (do ~@body)
        ~value)))
 
+(defn uuid [] (str (java.util.UUID/randomUUID)))
+
+; Animals ---------------------------------------------------------------------
+(defn can-reproduce [animal]
+  (> (:energy animal) 50))
+
+(defn clone [animal]
+  (-> animal
+    (assoc :id (uuid))
+    (assoc :age 0)
+    (assoc :energy 50)
+    (update-in [:loc] (fn [[x y]] (normalize-world-coords [(inc x) y])))
+    (update-in [:insulation]
+               (maybe mutation-chance v
+                      (+ v (rand-nth [-1 1]))))
+    (update-in [:styles :fg]
+               (maybe mutation-chance v
+                      (rr/rand-nth [:white :blue :green :yellow :red])))))
+
+(defn reproduce [animal]
+  [(update-in animal [:energy] #(- % 40))
+   (clone animal)])
+
+
+(defn affect-temp [animal] animal)
+(defn fix-temp [animal] animal)
+(defn find-resources [animal] animal)
+
+(defn wander [animal]
+  (update-in animal [:loc]
+             (fn [[x y] [dx dy]]
+               (normalize-world-coords [(+ x dx) (+ y dy)]))
+             (rr/rand-nth directions)))
+
+(defn age [animal] animal)
+(defn try-reproduce [animal] animal)
+
+(defn tick-animal [animal]
+  (-> animal
+    affect-temp
+    fix-temp
+    find-resources
+    wander
+    age
+    try-reproduce
+    vector))
+
+(defn tick-animals [animals]
+  (vec (mapcat tick-animal animals)))
+
 
 ; World Generation ------------------------------------------------------------
+(defn dedupe-things [things]
+  (->> (for [{:keys [loc] :as t} things]
+         [loc t])
+    (into {})
+    vals))
+
+
 (defn generate-terrain []
   (for [x (range world-width)
         y (range world-height)
@@ -94,39 +160,28 @@
     (into #{})
     (apply concat)))
 
-(defn dedupe-terrain [terrain]
-  (->> (for [{:keys [loc] :as t} terrain]
-         [loc t])
-    (into {})
-    vals))
+
+(defn generate-animals []
+  (conj (for [_ (range initial-animals)]
+          (-> eve
+            clone
+            (assoc :loc (random-coord))))
+        eve))
+
 
 (defn reset-terrain! []
   (let [new-terrain (-> (generate-terrain)
                       (into (generate-water))
-                      dedupe-terrain)]
+                      dedupe-things)]
     (dosync
       (ref-set terrain new-terrain))
     nil))
 
-
-; Animals ---------------------------------------------------------------------
-(defn can-reproduce [animal]
-  (> (:energy animal) 50))
-
-(defn clone [animal]
-  (-> animal
-    (assoc :age 0)
-    (assoc :energy 50)
-    (update-in [:insulation]
-               (maybe mutation-chance v
-                      (+ v (rand-nth [-1 1]))))
-    (update-in [:styles :fg]
-               (maybe mutation-chance v
-                      (rr/rand-nth [:white :blue :green :yellow :red])))))
-
-(defn reproduce [animal]
-  [(update-in animal [:energy] #(- % 40))
-   (clone animal)])
+(defn reset-animals! []
+  (let [new-animals (dedupe-things (generate-animals))]
+    (dosync
+      (ref-set animals new-animals))
+    nil))
 
 
 ; Drawing ---------------------------------------------------------------------
@@ -150,6 +205,14 @@
                        (< -1 sy sheight))]
       (s/put-string screen sx sy glyph styles))))
 
+(defn draw-animals! [screen]
+  (let [[swidth sheight] (s/get-size screen)]
+    (doseq [{:keys [loc glyph styles]} @animals
+            :let [[sx sy] (calc-screen-coords loc)]
+            :when (and (< -1 sx swidth)
+                       (< -1 sy sheight))]
+      (s/put-string screen sx sy glyph styles))))
+
 (defn from-right [screen n]
   (- (nth (s/get-size screen) 0) n))
 
@@ -158,6 +221,7 @@
             (s/put-string screen (from-right screen (.length s)) y s))]
     (s/clear screen)
     (draw-terrain! screen)
+    (draw-animals! screen)
     (draw-landmarks! screen)
     (put-right " SILT  " 0)
     (put-right (str @world-temp "° ") 1)
@@ -179,12 +243,30 @@
                    (:right \l) [(+ x scale) y]))
               key))))
 
+(defn update-animals! [key]
+  (dosync
+    (alter animals
+           #(nth (iterate tick-animals %)
+                 (case key
+                   \1 1
+                   \2 10
+                   \3 100
+                   \4 1000
+                   \5 10000
+                   \6 10000
+                   \7 10000
+                   \8 10000
+                   \9 10000))))
+  nil)
+
 (defn handle-input! [screen]
   (while-let [key (s/get-key screen)]
     (case key
       :escape (reset! running false)
       (:up :down :left :right) (move-window! key 10)
       (\h \j \k \l) (move-window! key)
+      \space (update-animals! \1)
+      (\1 \2 \3 \4 \5 \6 \7 \8 \9) (update-animals! key)
       nil)))
 
 
@@ -220,6 +302,7 @@
   (dosync (ref-set world-temp 0))
 
   (reset-terrain!)
+  (reset-animals!)
 
   (future (main-loop))
 
