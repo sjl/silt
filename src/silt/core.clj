@@ -33,6 +33,7 @@
 (defonce running (atom true))
 (def window-loc (ref [0 0]))
 (defonce last-timestamp (atom 0))
+(def cursor-loc (ref [0 1]))
 
 (defonce terrain (ref {}))
 (def terrain-rate 1)
@@ -104,7 +105,28 @@
 (defn neighbors [coord]
   (map (partial dir-add coord) directions))
 
-(defn uuid [] (str (java.util.UUID/randomUUID)))
+(defn uuid []
+  (str (java.util.UUID/randomUUID)))
+
+(defn mutate-directions [dirs]
+  (update-in dirs [(rr/rand-int 0 8) 1] inc))
+
+(defn mutate-animal [animal mc]
+  (-> animal
+    (update-in [:insulation]
+               (maybe mc v
+                      (+ v (rand-nth [-1 1]))))
+    (update-in [:directions]
+               (maybe mc v
+                      (mutate-directions v)))
+    (update-in [:styles :fg]
+               (maybe mc v
+                      (rr/rand-nth [:white :blue :green :yellow :red])))))
+
+(defn map-vals [m f]
+  (into {} (for [[k v] m]
+             [k (f v)])))
+
 
 ; Mysteries -------------------------------------------------------------------
 (def landmarks
@@ -117,13 +139,13 @@
           :action identity}
          {:name :fountain :glyph "ƒ" :loc [299 350] :styles {:fg :white :bg :blue}
           :action (fn [{:keys [loc]}]
-                    (letfn [(deage-animal [a]
-                              (maybe-update-in (< (manhattan loc (:loc a)) 3)
-                                               a [:age] dec))
-                            (deage-animals [as]
-                              (into {} (for [[loc a] as]
-                                         [loc (deage-animal a)])))]
-                      (alter animals deage-animals)))}
+                    (doseq [animal (->> loc
+                                     neighbors
+                                     (map animals)
+                                     (filter identity))]
+                      (dosync
+                        (alter animals
+                               #(update-in % [(:loc animal)] mutate-animal 100)))))}
          }))
 
 
@@ -132,22 +154,12 @@
   (> (:energy animal) 100))
 
 (defn clone [animal]
-  (letfn [(mutate-directions [dirs]
-            (update-in dirs [(rr/rand-int 0 8) 1] inc))]
-    (-> animal
-      (assoc :id (uuid))
-      (assoc :age 0)
-      (assoc :energy 60)
-      (update-in [:loc] (fn [[x y]] (normalize-world-coords [(inc x) y])))
-      (update-in [:insulation]
-                 (maybe mutation-chance v
-                        (+ v (rand-nth [-1 1]))))
-      (update-in [:directions]
-                 (maybe mutation-chance v
-                        (mutate-directions v)))
-      (update-in [:styles :fg]
-                 (maybe mutation-chance v
-                        (rr/rand-nth [:white :blue :green :yellow :red]))))))
+  (-> animal
+    (assoc :id (uuid))
+    (assoc :age 0)
+    (assoc :energy 60)
+    (update-in [:loc] (fn [[x y]] (normalize-world-coords [(inc x) y])))
+    (mutate-animal mutation-chance)))
 
 (defn reproduce [animal]
   [(update-in animal [:energy] - 60)
@@ -167,7 +179,7 @@
 (defn fix-temp [{:keys [temp] :as animal}]
   (-> animal
     (assoc :temp 0)
-    (update-in [:energy] - (Math/abs temp))))
+    (update-in [:energy] - (* 0.1 (Math/abs temp)))))
 
 (defn find-resources [{:keys [loc] :as animal}]
   (let [found (->> loc
@@ -310,6 +322,10 @@
   (let [[ox oy] @window-loc]
     (normalize-world-coords [(- wx ox) (- wy oy)])))
 
+(defn calc-world-coords [[sx sy]]
+  (let [[ox oy] @window-loc]
+    (normalize-world-coords [(+ sx ox) (+ sy oy)])))
+
 (defn draw-terrain! [screen]
   (let [[swidth sheight] (s/get-size screen)]
     (doseq [{:keys [loc glyph styles]} (vals @terrain)
@@ -340,6 +356,14 @@
 (defn from-bottom [screen n]
   (- (nth (s/get-size screen) 1) n))
 
+(defn str-animal [a]
+  (clojure.string/split-lines (with-out-str (clojure.pprint/pprint a))))
+
+(defn draw-animal-stats! [screen]
+  (when-let [animal (@animals (calc-world-coords @cursor-loc))]
+    (doseq [[i line] (map-indexed vector (str-animal animal))]
+      (s/put-string screen 0 i line))))
+
 (defn draw-screen! [screen]
   (when @dirty
     (reset! dirty false)
@@ -349,6 +373,7 @@
       (draw-terrain! screen)
       (draw-animals! screen)
       (draw-landmarks! screen)
+      (draw-animal-stats! screen)
       (s/put-string screen 0 (from-bottom screen 1) (str " " @day))
       (put-right " SILT  " 0)
       (put-right (str @world-temp "° ") 1)
@@ -356,11 +381,23 @@
       (put-right
         (let [[x y] @window-loc] (str x " " y " "))
         (from-bottom screen 1))
-      (s/move-cursor screen (from-right screen 1) 0)
+      (apply s/move-cursor screen @cursor-loc)
       (s/redraw screen))))
 
 
 ; Input -----------------------------------------------------------------------
+(defn move-cursor! [key]
+  (dosync
+    (commute cursor-loc
+             #(let [[x y] %1]
+                (case %2
+                  \k [x (- y 1)]
+                  \j [x (+ y 1)]
+                  \h [(- x 1) y]
+                  \l [(+ x 1) y]))
+             key))
+  (mark-dirty!))
+
 (defn move-window!
   ([key] (move-window! key 1))
   ([key scale]
@@ -369,10 +406,10 @@
               #(normalize-world-coords
                  (let [[x y] %1]
                    (case %2
-                     (:up \k) [x (- y scale)]
-                     (:down \j) [x (+ y scale)]
-                     (:left \h) [(- x scale) y]
-                     (:right \l) [(+ x scale) y])))
+                     :up [x (- y scale)]
+                     :down [x (+ y scale)]
+                     :left [(- x scale) y]
+                     :right [(+ x scale) y])))
               key))
    (mark-dirty!)))
 
@@ -441,7 +478,7 @@
       (move-window! key 10)
 
       (\h \j \k \l)
-      (move-window! key)
+      (move-cursor! key)
 
       \space
       (toggle-pause!)
