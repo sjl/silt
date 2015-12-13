@@ -23,7 +23,7 @@
 (def window-loc (ref [0 0]))
 (defonce last-timestamp (atom 0))
 
-(defonce terrain (ref []))
+(defonce terrain (ref {}))
 (def terrain-rate 2)
 (def terrain-objects
   {{:name :rock :glyph "*"} 20
@@ -106,7 +106,8 @@
 
 (defn affect-temp [animal] animal)
 (defn fix-temp [animal] animal)
-(defn find-resources [animal] animal)
+(defn find-resources [animal]
+  animal)
 
 (defn wander [animal]
   (update-in animal [:loc]
@@ -187,9 +188,11 @@
   (dosync (ref-set window-loc [0 0])))
 
 (defn reset-terrain! []
-  (let [new-terrain (-> (generate-terrain)
-                      (into (generate-water))
-                      dedupe-things)]
+  (let [new-terrain (as-> (generate-terrain) t
+                      (into t (generate-water))
+                      (dedupe-things t)
+                      (map (juxt :loc identity) t)
+                      (into {} t))]
     (dosync
       (ref-set terrain new-terrain))
     nil))
@@ -208,7 +211,7 @@
 
 (defn draw-terrain! [screen]
   (let [[swidth sheight] (s/get-size screen)]
-    (doseq [{:keys [loc glyph styles]} @terrain
+    (doseq [{:keys [loc glyph styles]} (vals @terrain)
             :let [[sx sy] (calc-screen-coords loc)]
             :when (and (< -1 sx swidth)
                        (< -1 sy sheight))]
@@ -277,6 +280,9 @@
                    \9 10000))))
   nil)
 
+(defn update-temperature! [amt]
+  (dosync (commute world-temp + amt)))
+
 (defn reset-world! []
   (reset-window!)
   (reset-terrain!)
@@ -299,6 +305,12 @@
 
       (\1 \2 \3 \4 \5 \6 \7 \8 \9)
       (update-animals! key)
+
+      (\+ \=)
+      (update-temperature! 1)
+
+      (\- \_)
+      (update-temperature! -1)
 
       \r
       (reset-world!)

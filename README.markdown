@@ -43,8 +43,8 @@ You can tick the world along one step at a time.
 Those are the basic controls.  To actually interact with the world you have two
 options:
 
-* **`w`** make the world one degree hotter.
-* **`s`** make the world one degree colder.
+* **`+`** make the world one degree hotter.
+* **`-`** make the world one degree colder.
 
 ## Game Mechanics
 
