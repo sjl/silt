@@ -103,6 +103,12 @@
   [(update-in animal [:energy] #(- % 40))
    (clone animal)])
 
+(defn try-move [[x y :as orig] [dx dy]]
+  (let [dest (normalize-world-coords [(+ x dx) (+ y dy)])]
+    (if (contains? @terrain dest)
+      orig
+      dest)))
+
 
 (defn affect-temp [animal] animal)
 (defn fix-temp [animal] animal)
@@ -111,8 +117,7 @@
 
 (defn wander [animal]
   (update-in animal [:loc]
-             (fn [[x y] [dx dy]]
-               (normalize-world-coords [(+ x dx) (+ y dy)]))
+             try-move
              (rr/rand-nth directions)))
 
 (defn age [animal]
