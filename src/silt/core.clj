@@ -34,10 +34,6 @@
    {:name :shrub :glyph "%" :styles {:fg :green}
     :energy 0.1} 80})
 
-(def landmarks
-  (ref #{{:name :monolith :glyph "#" :loc [0 0] :styles {:fg :black :bg :yellow}}
-         {:name :colossus :glyph "@" :loc [200 100] :styles {:fg :black :bg :red}}}))
-
 
 (def world-temp (ref 0))
 (def mutation-chance 10)
@@ -84,7 +80,34 @@
        (do ~@body)
        ~value)))
 
+(defn manhattan [[x y] [x1 y1]]
+  (+ (Math/abs (- x x1))
+     (Math/abs (- y y1))))
+
+(defmacro maybe-update-in [test-form m key-vec & body]
+  `(if ~test-form
+     (update-in ~m ~key-vec ~@body)
+     ~m))
+
 (defn uuid [] (str (java.util.UUID/randomUUID)))
+
+; Mysteries -------------------------------------------------------------------
+(def landmarks
+  (ref #{{:name :monolith :glyph "#" :loc [0 0] :styles {:fg :black :bg :yellow}
+          :action (fn [self]
+                    (when (and (rr/rand-bool 0.1)
+                               (empty? @animals))
+                      (ref-set animals [eve])))}
+         {:name :colossus :glyph "@" :loc [200 100] :styles {:fg :black :bg :red}
+          :action identity}
+         {:name :fountain :glyph "ƒ" :loc [299 350] :styles {:fg :white :bg :blue}
+          :action (fn [{:keys [loc]}]
+                    (letfn [(deage-animal [a]
+                              (maybe-update-in (< (manhattan loc (:loc a)) 3)
+                                               a [:age] dec))]
+                      (alter animals #(mapv deage-animal %))))}
+         }))
+
 
 ; Animals ---------------------------------------------------------------------
 (defn can-reproduce [animal]
@@ -260,10 +283,13 @@
       (draw-terrain! screen)
       (draw-animals! screen)
       (draw-landmarks! screen)
-      (s/put-string screen 0 (from-bottom screen 1) (str @day))
+      (s/put-string screen 0 (from-bottom screen 1) (str " " @day))
       (put-right " SILT  " 0)
       (put-right (str @world-temp "° ") 1)
       (put-right (str (count @animals) "  ") 2)
+      (put-right
+        (let [[x y] @window-loc] (str x " " y " "))
+        (from-bottom screen 1))
       (s/move-cursor screen (from-right screen 1) 0)
       (s/redraw screen))))
 
@@ -274,19 +300,29 @@
   ([key scale]
    (dosync
      (commute window-loc
-              #(let [[x y] %1]
-                 (case %2
-                   (:up \k) [x (- y scale)]
-                   (:down \j) [x (+ y scale)]
-                   (:left \h) [(- x scale) y]
-                   (:right \l) [(+ x scale) y]))
+              #(normalize-world-coords
+                 (let [[x y] %1]
+                   (case %2
+                     (:up \k) [x (- y scale)]
+                     (:down \j) [x (+ y scale)]
+                     (:left \h) [(- x scale) y]
+                     (:right \l) [(+ x scale) y])))
               key))
    (mark-dirty!)))
 
 (defn reset-day! []
   (dosync (ref-set day 0)))
 
-(defn update-animals! [key]
+
+(defn update-animals! []
+  (alter animals tick-animals))
+
+(defn update-landmarks! []
+  (doseq [lm @landmarks]
+    ((:action lm) lm)))
+
+
+(defn update-world! [key]
   (let [ticks (case key
                 \1 1
                 \2 10
@@ -297,12 +333,12 @@
                 \7 10000
                 \8 10000
                 \9 10000)]
-    (dosync
-      (commute day + ticks)
-      (alter animals
-             #(nth (iterate tick-animals %)
-                   ticks))))
-  (mark-dirty!))
+    (dotimes [_ ticks]
+      (dosync
+        (update-animals!)
+        (update-landmarks!)
+        (commute day inc)))
+    (mark-dirty!)))
 
 (defn update-temperature! [amt]
   (dosync (commute world-temp + amt))
@@ -334,7 +370,7 @@
       (toggle-pause!)
 
       (\1 \2 \3 \4 \5 \6 \7 \8 \9)
-      (update-animals! key)
+      (update-world! key)
 
       (\+ \=)
       (update-temperature! 1)
@@ -361,7 +397,7 @@
 (defn tick []
   (Thread/sleep 500)
   (when (not @paused)
-    (update-animals! \1)))
+    (update-world! \1)))
 
 (defn tick-loop []
   (while @running
