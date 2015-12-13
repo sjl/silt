@@ -11,7 +11,7 @@ Silt is my little game for [Ludum Dare
 34](http://ludumdare.com/compo/2015/12/09/welcome-to-ludum-dare-34/).  The theme
 this time was a tie between "Growing" and "Two Button Controls".
 
-![Preview](https://i.imgur.com/hZlAI60.gif)
+![Preview](https://i.imgur.com/oTXGd2z.gif)
 
 ## What is it?
 
