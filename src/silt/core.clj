@@ -31,9 +31,8 @@
 (defonce terrain (ref {}))
 (def terrain-rate 2)
 (def terrain-objects
-  {{:name :rock :glyph "*"} 20
-   {:name :shrub :glyph "%" :styles {:fg :green}
-    :energy 0.1} 80})
+  {{:name :rock :glyph "*" :energy 0} 20
+   {:name :shrub :glyph "%" :styles {:fg :green} :energy 1} 80})
 
 
 (def world-temp (ref 0))
@@ -90,6 +89,12 @@
      (update-in ~m ~key-vec ~@body)
      ~m))
 
+(defn dir-add [[x y] [dx dy]]
+  (normalize-world-coords [(+ x dx) (+ y dy)]))
+
+(defn neighbors [coord]
+  (map (partial dir-add coord) directions))
+
 (defn uuid [] (str (java.util.UUID/randomUUID)))
 
 ; Mysteries -------------------------------------------------------------------
@@ -131,8 +136,8 @@
   [(update-in animal [:energy] #(- % 40))
    (clone animal)])
 
-(defn try-move [[x y :as orig] [dx dy]]
-  (let [dest (normalize-world-coords [(+ x dx) (+ y dy)])]
+(defn try-move [orig dir]
+  (let [dest (dir-add orig dir)]
     (if (contains? @terrain dest)
       orig
       dest)))
@@ -140,8 +145,14 @@
 
 (defn affect-temp [animal] animal)
 (defn fix-temp [animal] animal)
-(defn find-resources [animal]
-  animal)
+(defn find-resources [{:keys [loc] :as animal}]
+  (let [found (->> loc
+                neighbors
+                (map terrain)
+                (filter identity)
+                (map :energy)
+                (reduce +))]
+    (update-in animal [:energy] + found)))
 
 (defn wander [animal]
   (update-in animal [:loc]
@@ -151,7 +162,7 @@
 (defn age [animal]
   (let [{:keys [age] :as animal} (update-in animal [:age] inc)]
     (if (and (> age 50)
-             (rr/rand-bool (inc (/ (:age animal) 100))))
+             (rr/rand-bool (inc (/ (:age animal) 500))))
       []
       [animal])))
 
@@ -197,7 +208,7 @@
                   y (rr/rand-gaussian-int oy pond-size)]]
     {:name :water
      :glyph "≈"
-     :energy 0.1
+     :energy 1
      :loc (normalize-world-coords [x y])
      :styles {:fg :black :bg :blue}}))
 
@@ -381,7 +392,8 @@
       (update-world! key)
 
       \[
-      (update-tick-delay! -50)
+      (when (> @tick-delay 50)
+        (update-tick-delay! -50))
 
       \]
       (update-tick-delay! 50)
@@ -438,7 +450,6 @@
 (comment
   (reset! running false)
   (reset! running true)
-  (dosync (ref-set world-temp 0))
 
   (reset-window!)
   (reset-terrain!)
