@@ -7,12 +7,14 @@
 
 
 ; Data ------------------------------------------------------------------------
-(def fps 10)
+(def fps 50)
 (def world-width 600)
 (def world-height 400)
 
 (def pond-count 100)
 (def pond-size 3)
+
+(def dirty (atom true))
 
 (def directions [[-1 -1] [ 0 -1] [ 1 -1]
                  [-1  0] [ 0  0] [ 1  0]
@@ -210,6 +212,9 @@
 
 
 ; Drawing ---------------------------------------------------------------------
+(defn mark-dirty! []
+  (reset! dirty true))
+
 (defn calc-screen-coords [[wx wy]]
   (let [[ox oy] @window-loc]
     (normalize-world-coords [(- wx ox) (- wy oy)])))
@@ -242,17 +247,19 @@
   (- (nth (s/get-size screen) 0) n))
 
 (defn draw-screen! [screen]
-  (letfn [(put-right [s y]
-            (s/put-string screen (from-right screen (.length s)) y s))]
-    (s/clear screen)
-    (draw-terrain! screen)
-    (draw-animals! screen)
-    (draw-landmarks! screen)
-    (put-right " SILT  " 0)
-    (put-right (str @world-temp "° ") 1)
-    (put-right (str (count @animals) "  ") 2)
-    (s/move-cursor screen (from-right screen 1) 0)
-    (s/redraw screen)))
+  (when @dirty
+    (reset! dirty false)
+    (letfn [(put-right [s y]
+              (s/put-string screen (from-right screen (.length s)) y s))]
+      (s/clear screen)
+      (draw-terrain! screen)
+      (draw-animals! screen)
+      (draw-landmarks! screen)
+      (put-right " SILT  " 0)
+      (put-right (str @world-temp "° ") 1)
+      (put-right (str (count @animals) "  ") 2)
+      (s/move-cursor screen (from-right screen 1) 0)
+      (s/redraw screen))))
 
 
 ; Input -----------------------------------------------------------------------
@@ -267,7 +274,8 @@
                    (:down \j) [x (+ y scale)]
                    (:left \h) [(- x scale) y]
                    (:right \l) [(+ x scale) y]))
-              key))))
+              key))
+   (mark-dirty!)))
 
 (defn update-animals! [key]
   (dosync
@@ -283,15 +291,17 @@
                    \7 10000
                    \8 10000
                    \9 10000))))
-  nil)
+  (mark-dirty!))
 
 (defn update-temperature! [amt]
-  (dosync (commute world-temp + amt)))
+  (dosync (commute world-temp + amt))
+  (mark-dirty!))
 
 (defn reset-world! []
   (reset-window!)
   (reset-terrain!)
-  (reset-animals!))
+  (reset-animals!)
+  (mark-dirty!))
 
 (defn handle-input! [screen]
   (while-let [key (s/get-key screen)]
