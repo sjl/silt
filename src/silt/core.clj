@@ -160,8 +160,15 @@
       dest)))
 
 
-(defn affect-temp [animal] animal)
-(defn fix-temp [animal] animal)
+(defn affect-temp [animal]
+  (assoc animal :temp (float (/ (Math/abs @world-temp)
+                                (inc (Math/abs (:insulation animal)))))))
+
+(defn fix-temp [{:keys [temp] :as animal}]
+  (-> animal
+    (assoc :temp 0)
+    (update-in [:energy] - (Math/abs temp))))
+
 (defn find-resources [{:keys [loc] :as animal}]
   (let [found (->> loc
                 neighbors
