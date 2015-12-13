@@ -72,8 +72,6 @@ etc).
 
 ## Mysteries
 
-*Not all of this is implemented yet.*
-
 There are a couple of strange object scattered around the landscape.  Can you
 find out what they do?
 
