@@ -34,11 +34,14 @@ The theme is "Two Button Controls", but I've bent that a little bit.
 * **`r`** reset the world.
 * **`escape`** quit the game.
 
-You can tick the world along one step at a time.
+The world ticks along at 2 ticks per section, but you can freeze time:
 
-* **`123456789`** to "tick" the world and let the creatures live.  **`1`** runs
-  for one tick, **`2`** for ten ticks, **`3`** for one hundred ticks, etc.
-* **`space`** a single tick, just like **`1`**.
+* **`space`** pause/unpause time.
+
+You can tick the world yourself too:
+
+* **`123456789`** to "tick" the world.  **`1`** runs for one tick, **`2`** for
+  ten ticks, **`3`** for one hundred ticks, etc.
 
 Those are the basic controls.  To actually interact with the world you have two
 options:

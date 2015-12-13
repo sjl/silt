@@ -8,12 +8,14 @@
 
 ; Data ------------------------------------------------------------------------
 (def fps 50)
+(def day (ref 0))
 (def world-width 600)
 (def world-height 400)
 
 (def pond-count 100)
 (def pond-size 3)
 
+(def paused (atom false))
 (def dirty (atom true))
 
 (def directions [[-1 -1] [ 0 -1] [ 1 -1]
@@ -246,6 +248,9 @@
 (defn from-right [screen n]
   (- (nth (s/get-size screen) 0) n))
 
+(defn from-bottom [screen n]
+  (- (nth (s/get-size screen) 1) n))
+
 (defn draw-screen! [screen]
   (when @dirty
     (reset! dirty false)
@@ -255,6 +260,7 @@
       (draw-terrain! screen)
       (draw-animals! screen)
       (draw-landmarks! screen)
+      (s/put-string screen 0 (from-bottom screen 1) (str @day))
       (put-right " SILT  " 0)
       (put-right (str @world-temp "° ") 1)
       (put-right (str (count @animals) "  ") 2)
@@ -277,20 +283,25 @@
               key))
    (mark-dirty!)))
 
+(defn reset-day! []
+  (dosync (ref-set day 0)))
+
 (defn update-animals! [key]
-  (dosync
-    (alter animals
-           #(nth (iterate tick-animals %)
-                 (case key
-                   \1 1
-                   \2 10
-                   \3 100
-                   \4 1000
-                   \5 10000
-                   \6 10000
-                   \7 10000
-                   \8 10000
-                   \9 10000))))
+  (let [ticks (case key
+                \1 1
+                \2 10
+                \3 100
+                \4 1000
+                \5 10000
+                \6 10000
+                \7 10000
+                \8 10000
+                \9 10000)]
+    (dosync
+      (commute day + ticks)
+      (alter animals
+             #(nth (iterate tick-animals %)
+                   ticks))))
   (mark-dirty!))
 
 (defn update-temperature! [amt]
@@ -298,10 +309,14 @@
   (mark-dirty!))
 
 (defn reset-world! []
+  (reset-day!)
   (reset-window!)
   (reset-terrain!)
   (reset-animals!)
   (mark-dirty!))
+
+(defn toggle-pause! []
+  (swap! paused not))
 
 (defn handle-input! [screen]
   (while-let [key (s/get-key screen)]
@@ -316,7 +331,7 @@
       (move-window! key)
 
       \space
-      (update-animals! \1)
+      (toggle-pause!)
 
       (\1 \2 \3 \4 \5 \6 \7 \8 \9)
       (update-animals! key)
@@ -343,14 +358,25 @@
     (if (> wait 0)
       (Thread/sleep wait))))
 
+(defn tick []
+  (Thread/sleep 500)
+  (when (not @paused)
+    (update-animals! \1)))
+
+(defn tick-loop []
+  (while @running
+    (tick)))
+
+
 (defn main-loop []
+  (reset! running true)
+  (future (tick-loop))
   (s/in-screen
     screen
     (while @running
       (draw-screen! screen)
       (handle-input! screen)
-      (throttle!)))
-  (reset! running true))
+      (throttle!))))
 
 
 ; Scratch ---------------------------------------------------------------------
