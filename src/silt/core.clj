@@ -11,6 +11,7 @@
 (def day (ref 0))
 (def world-width 600)
 (def world-height 400)
+(def tick-delay (atom 500))
 
 (def pond-count 100)
 (def pond-size 3)
@@ -313,6 +314,9 @@
 (defn reset-day! []
   (dosync (ref-set day 0)))
 
+(defn reset-tick-delay! []
+  (reset! tick-delay 500))
+
 
 (defn update-animals! []
   (alter animals tick-animals))
@@ -345,6 +349,7 @@
   (mark-dirty!))
 
 (defn reset-world! []
+  (reset-tick-delay!)
   (reset-day!)
   (reset-window!)
   (reset-terrain!)
@@ -353,6 +358,9 @@
 
 (defn toggle-pause! []
   (swap! paused not))
+
+(defn update-tick-delay! [amt]
+  (swap! tick-delay + amt))
 
 (defn handle-input! [screen]
   (while-let [key (s/get-key screen)]
@@ -371,6 +379,12 @@
 
       (\1 \2 \3 \4 \5 \6 \7 \8 \9)
       (update-world! key)
+
+      \[
+      (update-tick-delay! -50)
+
+      \]
+      (update-tick-delay! 50)
 
       (\+ \=)
       (update-temperature! 1)
@@ -395,7 +409,7 @@
       (Thread/sleep wait))))
 
 (defn tick []
-  (Thread/sleep 500)
+  (Thread/sleep @tick-delay)
   (when (not @paused)
     (update-world! \1)))
 
