@@ -130,23 +130,30 @@
 
 ; Mysteries -------------------------------------------------------------------
 (def landmarks
-  (ref #{{:name :monolith :glyph "#" :loc [0 0] :styles {:fg :black :bg :yellow}
-          :action (fn [self]
-                    (when (and (rr/rand-bool 0.1)
-                               (empty? @animals))
-                      (ref-set animals {(:loc eve) eve})))}
-         {:name :colossus :glyph "@" :loc [200 100] :styles {:fg :black :bg :red}
-          :action identity}
-         {:name :fountain :glyph "ƒ" :loc [299 350] :styles {:fg :white :bg :blue}
-          :action (fn [{:keys [loc]}]
-                    (doseq [animal (->> loc
-                                     neighbors
-                                     (map animals)
-                                     (filter identity))]
-                      (dosync
-                        (alter animals
-                               #(update-in % [(:loc animal)] mutate-animal 100)))))}
-         }))
+  (ref {[0 0]
+        {:name :monolith :glyph "#" :loc [0 0] :styles {:fg :black :bg :yellow}
+         :description "A sleek, rectangular, octarine monolith.  What is its function?"
+         :action (fn [self]
+                   (when (and (rr/rand-bool 0.1)
+                              (empty? @animals))
+                     (ref-set animals {(:loc eve) eve})))}
+        [200 100]
+        {:name :colossus :glyph "@" :loc [200 100] :styles {:fg :black :bg :red}
+         :description "A massive granite statue of a being.  You do not recognize the species."
+         :action identity}
+
+        [299 350]
+        {:name :fountain :glyph "ƒ" :loc [299 350] :styles {:fg :white :bg :blue}
+         :description "A marble fountain burbles peacefully."
+         :action (fn [{:keys [loc]}]
+                   (doseq [animal (->> loc
+                                    neighbors
+                                    (map animals)
+                                    (filter identity))]
+                     (dosync
+                       (alter animals
+                              #(update-in % [(:loc animal)] mutate-animal 100)))))}
+        }))
 
 
 ; Animals ---------------------------------------------------------------------
@@ -336,7 +343,7 @@
 
 (defn draw-landmarks! [screen]
   (let [[swidth sheight] (s/get-size screen)]
-    (doseq [{:keys [loc glyph styles]} @landmarks
+    (doseq [{:keys [loc glyph styles]} (vals @landmarks)
             :let [[sx sy] (calc-screen-coords loc)]
             :when (and (< -1 sx swidth)
                        (< -1 sy sheight))]
@@ -356,6 +363,10 @@
 (defn from-bottom [screen n]
   (- (nth (s/get-size screen) 1) n))
 
+(defn draw-landmark-description! [screen]
+  (when-let [lm (@landmarks (calc-world-coords @cursor-loc))]
+    (s/put-string screen 0 0 (:description lm))))
+
 (defn str-animal [a]
   (clojure.string/split-lines (with-out-str (clojure.pprint/pprint a))))
 
@@ -373,6 +384,7 @@
       (draw-terrain! screen)
       (draw-animals! screen)
       (draw-landmarks! screen)
+      (draw-landmark-description! screen)
       (draw-animal-stats! screen)
       (s/put-string screen 0 (from-bottom screen 1) (str " " @day))
       (put-right " SILT  " 0)
@@ -427,7 +439,7 @@
   (alter animals tick-animals))
 
 (defn update-landmarks! []
-  (doseq [lm @landmarks]
+  (doseq [lm (vals @landmarks)]
     ((:action lm) lm)))
 
 (defn update-world! [key]
