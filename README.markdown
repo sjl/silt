@@ -34,7 +34,7 @@ The theme is "Two Button Controls", but I've bent that a little bit.
 * **`r`** reset the world.
 * **`escape`** quit the game.
 
-The world ticks along at 2 ticks per section, but you can freeze time:
+The world ticks along at 2 ticks per second, but you can freeze time:
 
 * **`space`** pause/unpause time.
 
