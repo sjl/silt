@@ -12,9 +12,15 @@
 (def world-width 600)
 (def world-height 400)
 (def tick-delay (atom 500))
+(def age-effect 300)
 
 (def pond-count 100)
 (def pond-size 3)
+(def initial-energy 200.0)
+(def hunger-rate 0.1)
+
+(def fruit-energy 40)
+(def fruit-rate 1)
 
 (def paused (atom false))
 (def dirty (atom true))
@@ -29,17 +35,17 @@
 (defonce last-timestamp (atom 0))
 
 (defonce terrain (ref {}))
-(def terrain-rate 2)
+(def terrain-rate 1)
 (def terrain-objects
   {{:name :rock :glyph "*" :energy 0} 20
-   {:name :shrub :glyph "%" :styles {:fg :green} :energy 1} 80})
+   {:name :shrub :glyph "%" :styles {:fg :green} :energy 0} 80})
 
 
 (def world-temp (ref 0))
 (def mutation-chance 10)
-(def reproduction-rate 5)
+(def reproduction-rate 10)
 
-(def animals (ref []))
+(def animals (ref {}))
 (def initial-animals 400)
 (def eve
   {:glyph "@"
@@ -47,8 +53,11 @@
    :temp 0
    :insulation 0
    :age 0
-   :energy 100.0
+   :energy initial-energy
    :id "eve"
+   :directions [[[-1 -1] 2] [[0 -1] 1] [[1 -1] 2]
+                [[-1  0] 2] [[0  0] 0] [[1  0] 2]
+                [[-1  1] 2] [[0  1] 1] [[1  1] 2]]
    :loc [0 1]
    })
 
@@ -103,37 +112,45 @@
           :action (fn [self]
                     (when (and (rr/rand-bool 0.1)
                                (empty? @animals))
-                      (ref-set animals [eve])))}
+                      (ref-set animals {(:loc eve) eve})))}
          {:name :colossus :glyph "@" :loc [200 100] :styles {:fg :black :bg :red}
           :action identity}
          {:name :fountain :glyph "ƒ" :loc [299 350] :styles {:fg :white :bg :blue}
           :action (fn [{:keys [loc]}]
                     (letfn [(deage-animal [a]
                               (maybe-update-in (< (manhattan loc (:loc a)) 3)
-                                               a [:age] dec))]
-                      (alter animals #(mapv deage-animal %))))}
+                                               a [:age] dec))
+                            (deage-animals [as]
+                              (into {} (for [[loc a] as]
+                                         [loc (deage-animal a)])))]
+                      (alter animals deage-animals)))}
          }))
 
 
 ; Animals ---------------------------------------------------------------------
 (defn can-reproduce [animal]
-  (> (:energy animal) 50))
+  (> (:energy animal) 100))
 
 (defn clone [animal]
-  (-> animal
-    (assoc :id (uuid))
-    (assoc :age 0)
-    (assoc :energy 50)
-    (update-in [:loc] (fn [[x y]] (normalize-world-coords [(inc x) y])))
-    (update-in [:insulation]
-               (maybe mutation-chance v
-                      (+ v (rand-nth [-1 1]))))
-    (update-in [:styles :fg]
-               (maybe mutation-chance v
-                      (rr/rand-nth [:white :blue :green :yellow :red])))))
+  (letfn [(mutate-directions [dirs]
+            (update-in dirs [(rr/rand-int 0 8) 1] inc))]
+    (-> animal
+      (assoc :id (uuid))
+      (assoc :age 0)
+      (assoc :energy 60)
+      (update-in [:loc] (fn [[x y]] (normalize-world-coords [(inc x) y])))
+      (update-in [:insulation]
+                 (maybe mutation-chance v
+                        (+ v (rand-nth [-1 1]))))
+      (update-in [:directions]
+                 (maybe mutation-chance v
+                        (mutate-directions v)))
+      (update-in [:styles :fg]
+                 (maybe mutation-chance v
+                        (rr/rand-nth [:white :blue :green :yellow :red]))))))
 
 (defn reproduce [animal]
-  [(update-in animal [:energy] #(- % 40))
+  [(update-in animal [:energy] - 60)
    (clone animal)])
 
 (defn try-move [orig dir]
@@ -157,14 +174,22 @@
 (defn wander [animal]
   (update-in animal [:loc]
              try-move
-             (rr/rand-nth directions)))
+             (rr/rand-nth-weighted (:directions animal))))
 
 (defn age [animal]
   (let [{:keys [age] :as animal} (update-in animal [:age] inc)]
     (if (and (> age 50)
-             (rr/rand-bool (inc (/ (:age animal) 500))))
+             (rr/rand-bool (inc (/ (:age animal) age-effect))))
       []
       [animal])))
+
+(defn hunger [animal]
+  (update-in animal [:energy] - hunger-rate))
+
+(defn starve [animal]
+  (if (< (:energy animal) 0)
+    []
+    [animal]))
 
 (defn try-reproduce [animals]
   (match animals
@@ -178,21 +203,45 @@
   (-> animal
     affect-temp
     fix-temp
-    find-resources
     wander
-    age
+    find-resources
+    hunger
+    starve
+    ; age
     try-reproduce))
 
 (defn tick-animals [animals]
-  (vec (mapcat tick-animal animals)))
+  (into {} (map (juxt :loc identity)
+                (mapcat tick-animal (vals animals)))))
 
 
 ; World Generation ------------------------------------------------------------
+(defn tick-shrub [shrub]
+  (if (rr/rand-bool fruit-rate)
+    (-> shrub
+      (assoc-in [:energy] fruit-energy)
+      (assoc-in [:styles :fg] :magenta))
+    (let [animals @animals]
+      (if (->> shrub
+            :loc
+            neighbors
+            (map animals)
+            (filter identity)
+            empty?)
+        shrub
+        (-> shrub
+          (assoc-in [:energy] 0)
+          (assoc-in [:styles :fg] :green))))))
+
+(defn tick-terrain [terrain]
+  (into {} (for [[loc {:keys [name] :as obj}] terrain]
+             [loc (case name
+                    :shrub (tick-shrub obj)
+                    obj)])))
+
+
 (defn dedupe-things [things]
-  (->> (for [{:keys [loc] :as t} things]
-         [loc t])
-    (into {})
-    vals))
+  (into {} (map (juxt :loc identity) things)))
 
 
 (defn generate-terrain []
@@ -208,7 +257,7 @@
                   y (rr/rand-gaussian-int oy pond-size)]]
     {:name :water
      :glyph "≈"
-     :energy 1
+     :energy 0.01
      :loc (normalize-world-coords [x y])
      :styles {:fg :black :bg :blue}}))
 
@@ -223,7 +272,7 @@
   (conj (for [_ (range initial-animals)]
           (-> eve
             clone
-            (assoc :energy 100)
+            (assoc :energy initial-energy)
             (assoc :loc (random-coord))))
         eve))
 
@@ -234,9 +283,7 @@
 (defn reset-terrain! []
   (let [new-terrain (as-> (generate-terrain) t
                       (into t (generate-water))
-                      (dedupe-things t)
-                      (map (juxt :loc identity) t)
-                      (into {} t))]
+                      (dedupe-things t))]
     (dosync
       (ref-set terrain new-terrain))
     nil))
@@ -274,7 +321,7 @@
 
 (defn draw-animals! [screen]
   (let [[swidth sheight] (s/get-size screen)]
-    (doseq [{:keys [loc glyph styles]} @animals
+    (doseq [{:keys [loc glyph styles]} (vals @animals)
             :let [[sx sy] (calc-screen-coords loc)]
             :when (and (< -1 sx swidth)
                        (< -1 sy sheight))]
@@ -329,13 +376,15 @@
   (reset! tick-delay 500))
 
 
+(defn update-terrain! []
+  (alter terrain tick-terrain))
+
 (defn update-animals! []
   (alter animals tick-animals))
 
 (defn update-landmarks! []
   (doseq [lm @landmarks]
     ((:action lm) lm)))
-
 
 (defn update-world! [key]
   (let [ticks (case key
@@ -351,9 +400,11 @@
     (dotimes [_ ticks]
       (dosync
         (update-animals!)
+        (update-terrain!)
         (update-landmarks!)
         (commute day inc)))
     (mark-dirty!)))
+
 
 (defn update-temperature! [amt]
   (dosync (commute world-temp + amt))
