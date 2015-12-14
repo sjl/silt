@@ -76,7 +76,7 @@
   {:glyph "@"
    :styles {:fg :white}
    :temp 0
-   :insulation 1
+   :insulation 2
    :energy initial-energy
    :id "eve"
    :directions [[[-1 -1] 2] [[0 -1] 1] [[1 -1] 2]
