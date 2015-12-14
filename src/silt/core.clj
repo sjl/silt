@@ -46,7 +46,6 @@
 
 
 (def world-temp (ref 0))
-(def mutation-chance 10)
 (def reproduction-rate 10)
 
 (def animals (ref {}))
@@ -114,17 +113,19 @@
 (defn mutate-directions [dirs]
   (update-in dirs [(rr/rand-int 0 9) 1] inc))
 
-(defn mutate-animal [animal mc]
-  (-> animal
-    (update :insulation
-            (maybe mc v
-                   (+ v (rand-nth [-1 1]))))
-    (update :directions
-            (maybe mc v
-                   (mutate-directions v)))
-    (update-in [:styles :fg]
-               (maybe mc v
-                      (rr/rand-nth [:white :blue :green :yellow :red])))))
+(defn mutate-animal
+  ([animal] (mutate-animal animal nil))
+  ([animal mc]
+   (-> animal
+     (update :insulation
+             (maybe (or mc 10) v
+                    (+ v (rand-nth [-1 1]))))
+     (update :directions
+             (maybe (or mc 20) v
+                    (mutate-directions v)))
+     (update-in [:styles :fg]
+                (maybe (or mc 0.01) v
+                       (rr/rand-nth [:white :blue :green :yellow :red]))))))
 
 (defn map-vals [m f]
   (into {} (for [[k v] m]
@@ -184,7 +185,7 @@
     (assoc :age 0)
     (assoc :energy 60)
     (update :loc (fn [[x y]] (normalize-world-coords [(inc x) y])))
-    (mutate-animal mutation-chance)))
+    mutate-animal))
 
 (defn reproduce [animal]
   [(update animal :energy - 60)
