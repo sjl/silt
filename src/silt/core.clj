@@ -11,8 +11,9 @@
 (def day (ref 0))
 (def world-width 600)
 (def world-height 400)
-(def tick-delay (atom 500))
+(def tick-delay (atom 50))
 (def age-effect 300)
+(def insulation-cost 0.01)
 
 (def pond-count 100)
 (def pond-size 3)
@@ -109,16 +110,16 @@
   (str (java.util.UUID/randomUUID)))
 
 (defn mutate-directions [dirs]
-  (update-in dirs [(rr/rand-int 0 8) 1] inc))
+  (update-in dirs [(rr/rand-int 0 9) 1] inc))
 
 (defn mutate-animal [animal mc]
   (-> animal
-    (update-in [:insulation]
-               (maybe mc v
-                      (+ v (rand-nth [-1 1]))))
-    (update-in [:directions]
-               (maybe mc v
-                      (mutate-directions v)))
+    (update :insulation
+            (maybe mc v
+                   (+ v (rand-nth [-1 1]))))
+    (update :directions
+            (maybe mc v
+                   (mutate-directions v)))
     (update-in [:styles :fg]
                (maybe mc v
                       (rr/rand-nth [:white :blue :green :yellow :red])))))
@@ -152,7 +153,7 @@
                                     (filter identity))]
                      (dosync
                        (alter animals
-                              #(update-in % [(:loc animal)] mutate-animal 100)))))}
+                              #(update % (:loc animal) mutate-animal 100)))))}
         }))
 
 
@@ -165,11 +166,11 @@
     (assoc :id (uuid))
     (assoc :age 0)
     (assoc :energy 60)
-    (update-in [:loc] (fn [[x y]] (normalize-world-coords [(inc x) y])))
+    (update :loc (fn [[x y]] (normalize-world-coords [(inc x) y])))
     (mutate-animal mutation-chance)))
 
 (defn reproduce [animal]
-  [(update-in animal [:energy] - 60)
+  [(update animal :energy - 60)
    (clone animal)])
 
 (defn try-move [orig dir]
@@ -186,7 +187,7 @@
 (defn fix-temp [{:keys [temp] :as animal}]
   (-> animal
     (assoc :temp 0)
-    (update-in [:energy] - (* 0.1 (Math/abs temp)))))
+    (update :energy - (* 0.1 (Math/abs temp)))))
 
 (defn find-resources [{:keys [loc] :as animal}]
   (let [found (->> loc
@@ -195,22 +196,23 @@
                 (filter identity)
                 (map :energy)
                 (reduce +))]
-    (update-in animal [:energy] + found)))
+    (update animal :energy + found)))
 
 (defn wander [animal]
-  (update-in animal [:loc]
-             try-move
-             (rr/rand-nth-weighted (:directions animal))))
+  (update animal :loc
+          try-move
+          (rr/rand-nth-weighted (:directions animal))))
 
 (defn age [animal]
-  (let [{:keys [age] :as animal} (update-in animal [:age] inc)]
+  (let [{:keys [age] :as animal} (update animal :age inc)]
     (if (and (> age 50)
              (rr/rand-bool (inc (/ (:age animal) age-effect))))
       []
       [animal])))
 
-(defn hunger [animal]
-  (update-in animal [:energy] - hunger-rate))
+(defn hunger [{:keys [insulation] :as animal}]
+  (update animal :energy - (+ hunger-rate
+                              (* insulation insulation-cost))))
 
 (defn starve [animal]
   (if (< (:energy animal) 0)
@@ -428,8 +430,11 @@
 (defn reset-day! []
   (dosync (ref-set day 0)))
 
+(defn reset-temperature! []
+  (dosync (ref-set world-temp 0)))
+
 (defn reset-tick-delay! []
-  (reset! tick-delay 500))
+  (reset! tick-delay 50))
 
 
 (defn update-terrain! []
@@ -442,24 +447,13 @@
   (doseq [lm (vals @landmarks)]
     ((:action lm) lm)))
 
-(defn update-world! [key]
-  (let [ticks (case key
-                \1 1
-                \2 10
-                \3 100
-                \4 1000
-                \5 10000
-                \6 10000
-                \7 10000
-                \8 10000
-                \9 10000)]
-    (dotimes [_ ticks]
-      (dosync
-        (update-animals!)
-        (update-terrain!)
-        (update-landmarks!)
-        (commute day inc)))
-    (mark-dirty!)))
+(defn update-world! []
+  (dosync
+    (update-animals!)
+    (update-terrain!)
+    (update-landmarks!)
+    (commute day inc))
+  (mark-dirty!))
 
 
 (defn update-temperature! [amt]
@@ -467,6 +461,7 @@
   (mark-dirty!))
 
 (defn reset-world! []
+  (reset-temperature!)
   (reset-tick-delay!)
   (reset-day!)
   (reset-window!)
@@ -495,15 +490,8 @@
       \space
       (toggle-pause!)
 
-      (\1 \2 \3 \4 \5 \6 \7 \8 \9)
-      (update-world! key)
-
-      \[
-      (when (> @tick-delay 50)
-        (update-tick-delay! -50))
-
-      \]
-      (update-tick-delay! 50)
+      \1
+      (update-world!)
 
       (\+ \=)
       (update-temperature! 1)
@@ -530,7 +518,7 @@
 (defn tick []
   (Thread/sleep @tick-delay)
   (when (not @paused)
-    (update-world! \1)))
+    (update-world!)))
 
 (defn tick-loop []
   (while @running
@@ -539,6 +527,8 @@
 
 (defn main-loop []
   (reset! running true)
+  (reset! paused false)
+  (reset-world!)
   (future (tick-loop))
   (s/in-screen
     screen
