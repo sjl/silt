@@ -131,7 +131,7 @@
   (str (java.util.UUID/randomUUID)))
 
 (defn mutate-directions [dirs]
-  (update-in dirs [(rr/rand-int 0 9) 1] inc))
+  (update-in dirs [(rr/rand-int 0 9) 1] + (rr/rand-int 1 5)))
 
 (defn clamp [v minimum]
   (max v minimum))
@@ -144,11 +144,11 @@
              (maybe (or mc 10) v
                     (clamp (+ v (rand-nth [-1 1])) 1)))
      (update :directions
-             (maybe (or mc 20) v
+             (maybe (or mc 10) v
                     (mutate-directions v)))
      (update-in [:styles :fg]
                 (maybe (or mc 0.8) v
-                       (rr/rand-nth [:white :blue :green :yellow :red])))
+                       (rr/rand-nth [:white :blue :green :yellow :red :cyan])))
      (update :glyph
              (maybe (or mc 0.05) v
                     (rr/rand-nth [";" "☃" "$" "&" "!" ":" "¥" "£" "¤" "€"
