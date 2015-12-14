@@ -18,7 +18,11 @@
 (def screen-size (atom [0 0]))
 (defn handle-resize [cols rows]
   (reset! screen-size [cols rows]))
-(def screen (s/get-screen :swing {:resize-listener handle-resize}))
+(def screen (s/get-screen :swing {:resize-listener handle-resize
+                                  :palette :mac-os-x
+                                  :font ["Menlo" "Consolas"]
+                                  :font-size 16
+                                  }))
 
 (def pond-count 100)
 (def pond-size 3)
@@ -72,7 +76,7 @@
   {:glyph "@"
    :styles {:fg :white}
    :temp 0
-   :insulation 0
+   :insulation 1
    :energy initial-energy
    :id "eve"
    :directions [[[-1 -1] 2] [[0 -1] 1] [[1 -1] 2]
