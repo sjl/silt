@@ -124,8 +124,12 @@
              (maybe (or mc 20) v
                     (mutate-directions v)))
      (update-in [:styles :fg]
-                (maybe (or mc 0.01) v
-                       (rr/rand-nth [:white :blue :green :yellow :red]))))))
+                (maybe (or mc 0.8) v
+                       (rr/rand-nth [:white :blue :green :yellow :red])))
+     (update :glyph
+             (maybe (or mc 0.01) v
+                    (rr/rand-nth ["♞" "☃" "ℵ" "ℇ" "⧲" "⦼" "⨾" "∂" "∀" "€"
+                                  "₵" "★" "♞" "♟" "❣" "¿" "?" "§" "@"]))))))
 
 (defn map-vals [m f]
   (into {} (for [[k v] m]
