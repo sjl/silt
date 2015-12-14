@@ -1,4 +1,4 @@
-(defproject silt "0.2.0"
+(defproject silt "0.3.0"
   :description "You are the god of a toroidal world."
   :url "http://bitbucket.org/sjl/silt"
   :license {:name "MIT/X11"}
