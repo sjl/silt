@@ -151,16 +151,21 @@
             :description "An immense ash tree.  Its branches touch the stars."
             :action
             (fn [{[x y] :loc}]
-              (when (rr/rand-bool 0.1)
-                (let [dx (rr/rand-gaussian-int 0 5)
-                      dy (rr/rand-gaussian-int 0 5)
+              (when (rr/rand-bool 0.25)
+                (let [dx (rr/rand-gaussian-int 0 10)
+                      dy (rr/rand-gaussian-int 0 10)
                       target (normalize-world-coords [(+ x dx) (+ y dy)])]
                   (when-not (= [dx dy] [0 0])
                     (alter terrain assoc target (assoc shrub :loc target))))))}
            {:name :colossus :loc (random-coord)
             :glyph "@" :styles {:fg :black :bg :red}
-            :description "A massive granite statue of a being.  You do not recognize the species."
-            :action identity}
+            :description "A massive granite statue of an alien being."
+            :action
+            (fn [{[x y :as loc] :loc :as self}]
+              (when (zero? (rem @day 1000))
+                (let [dest (normalize-world-coords [(inc x) y])]
+                  (alter landmarks dissoc loc)
+                  (alter landmarks assoc dest (assoc self :loc dest)))))}
            {:name :fountain :loc (random-coord)
             :glyph "ƒ" :styles {:fg :white :bg :blue}
             :description "A marble fountain burbles peacefully."
