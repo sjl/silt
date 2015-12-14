@@ -39,9 +39,10 @@
 
 (defonce terrain (ref {}))
 (def terrain-rate 1)
+(def shrub {:name :shrub :glyph "%" :styles {:fg :green} :energy 0})
 (def terrain-objects
   {{:name :rock :glyph "*" :energy 0} 20
-   {:name :shrub :glyph "%" :styles {:fg :green} :energy 0} 80})
+   shrub 80})
 
 
 (def world-temp (ref 0))
@@ -129,33 +130,48 @@
   (into {} (for [[k v] m]
              [k (f v)])))
 
+(defn to-loc-map [coll]
+  (into {} (map (juxt :loc identity) coll)))
+
 
 ; Mysteries -------------------------------------------------------------------
 (def landmarks
-  (ref {[0 0]
-        {:name :monolith :glyph "#" :loc [0 0] :styles {:fg :black :bg :yellow}
-         :description "A sleek, rectangular, octarine monolith.  What is its function?"
-         :action (fn [self]
-                   (when (and (rr/rand-bool 0.1)
-                              (empty? @animals))
-                     (ref-set animals {(:loc eve) eve})))}
-        [200 100]
-        {:name :colossus :glyph "@" :loc [200 100] :styles {:fg :black :bg :red}
-         :description "A massive granite statue of a being.  You do not recognize the species."
-         :action identity}
-
-        [299 350]
-        {:name :fountain :glyph "ƒ" :loc [299 350] :styles {:fg :white :bg :blue}
-         :description "A marble fountain burbles peacefully."
-         :action (fn [{:keys [loc]}]
-                   (doseq [animal (->> loc
-                                    neighbors
-                                    (map animals)
-                                    (filter identity))]
-                     (dosync
-                       (alter animals
-                              #(update % (:loc animal) mutate-animal 100)))))}
-        }))
+  (ref (to-loc-map
+         #{{:name :monolith :loc [0 0]
+            :glyph "#" :styles {:fg :black :bg :yellow}
+            :description "A sleek, rectangular, octarine monolith.  What is its function?"
+            :action
+            (fn [self]
+              (when (and (rr/rand-bool 0.1)
+                         (empty? @animals))
+                (ref-set animals {(:loc eve) eve})))}
+           {:name :yggdrasil :loc (random-coord)
+            :glyph "Y" :styles {:fg :white :bg :green}
+            :description "An immense ash tree.  Its branches touch the stars."
+            :action
+            (fn [{[x y] :loc}]
+              (when (rr/rand-bool 0.1)
+                (let [dx (rr/rand-gaussian-int 0 5)
+                      dy (rr/rand-gaussian-int 0 5)
+                      target (normalize-world-coords [(+ x dx) (+ y dy)])]
+                  (when-not (= [dx dy] [0 0])
+                    (alter terrain assoc target (assoc shrub :loc target))))))}
+           {:name :colossus :loc (random-coord)
+            :glyph "@" :styles {:fg :black :bg :red}
+            :description "A massive granite statue of a being.  You do not recognize the species."
+            :action identity}
+           {:name :fountain :loc (random-coord)
+            :glyph "ƒ" :styles {:fg :white :bg :blue}
+            :description "A marble fountain burbles peacefully."
+            :action
+            (fn [{:keys [loc]}]
+              (doseq [animal (->> loc
+                               neighbors
+                               (map animals)
+                               (filter identity))]
+                (alter animals
+                       #(update % (:loc animal) mutate-animal 100))))}
+           })))
 
 
 ; Animals ---------------------------------------------------------------------
@@ -374,9 +390,10 @@
   (clojure.string/split-lines (with-out-str (clojure.pprint/pprint a))))
 
 (defn draw-animal-stats! [screen]
-  (when-let [animal (@animals (calc-world-coords @cursor-loc))]
-    (doseq [[i line] (map-indexed vector (str-animal animal))]
-      (s/put-string screen 0 i line))))
+  (when @paused
+    (when-let [animal (@animals (calc-world-coords @cursor-loc))]
+      (doseq [[i line] (map-indexed vector (str-animal animal))]
+        (s/put-string screen 0 i line)))))
 
 (defn draw-screen! [screen]
   (when @dirty
