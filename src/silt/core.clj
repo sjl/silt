@@ -137,8 +137,9 @@
 (defn mutate-directions [dirs]
   (update-in dirs [(rr/rand-int 0 9) 1] + (rr/rand-int 1 5)))
 
-(defn clamp [v minimum]
-  (max v minimum))
+(defn clamp
+  ([v minimum] (max v minimum))
+  ([v minimum maximum] (min maximum (max v minimum))))
 
 (defn mutate-animal
   ([animal] (mutate-animal animal nil))
@@ -373,7 +374,8 @@
 
 
 (defn reset-window! []
-  (dosync (ref-set window-loc [0 0])))
+  (dosync (ref-set cursor-loc [0 1])
+          (ref-set window-loc [0 0])))
 
 (defn reset-terrain! []
   (let [new-terrain (as-> (generate-terrain) t
@@ -478,10 +480,10 @@
     (commute cursor-loc
              #(let [[x y] %1]
                 (case %2
-                  (\w \k) [x (- y 1)]
-                  (\s \j) [x (+ y 1)]
-                  (\a \h) [(- x 1) y]
-                  (\d \l) [(+ x 1) y]))
+                  (\w \k) [x (clamp (- y 1) 0)]
+                  (\s \j) [x (clamp (+ y 1) 0 (dec (@screen-size 1)))]
+                  (\a \h) [(clamp (- x 1) 0) y]
+                  (\d \l) [(clamp (+ x 1) 0 (dec (@screen-size 0))) y]))
              key))
   (mark-dirty!))
 
