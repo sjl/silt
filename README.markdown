@@ -25,23 +25,19 @@ and want to destroy all life.
 
 ## Controls
 
-*Not all of this is implemented yet.*
-
 The theme is "Two Button Controls", but I've bent that a little bit.
 
-* **`hjkl`** to move your view of the world.
-* **`arrow keys`** to move the view a bit faster.
-* **`r`** reset the world.
+* **`arrow keys`** to move your view of the world.
+* **`R`** reset the world.
 * **`escape`** quit the game.
 
-The world ticks along at 2 ticks per second, but you can freeze time:
+Put your cursor over a creature to see their stats.
+
+* **`hjkl`** or **`wasd`** to move your cursor.
+
+The world ticks along, but you can freeze time:
 
 * **`space`** pause/unpause time.
-
-You can tick the world yourself too:
-
-* **`123456789`** to "tick" the world.  **`1`** runs for one tick, **`2`** for
-  ten ticks, **`3`** for one hundred ticks, etc.
 
 Those are the basic controls.  To actually interact with the world you have two
 options:
@@ -51,10 +47,8 @@ options:
 
 ## Game Mechanics
 
-*Not all of this is implemented yet.*
-
 Creatures have energy.  They can spend it to stay alive, and get it by being
-near food/water.
+near water or eating fruit.
 
 Creatures have a body temperature that needs to stay near their ideal
 temperature.  If the world is hotter or colder than they are, they need to spend
@@ -64,16 +58,14 @@ up).
 Creatures have an insulation rating that affects how fast or slow they exchange
 heat to/from the environment (think different amounts of fur or skin).
 
-Creatures will eventually die of old age.
-
 Creatures can reproduce asexually if they have enough energy.  Their offspring
-may have mutations (different colors, ideal temperatures, amounts of insulation,
-etc).
+may have mutations (different colors, amounts of insulation, tendencies to walk
+in a certain direction, etc).
 
 ## Mysteries
 
-There are a couple of strange object scattered around the landscape.  Can you
-find out what they do?
+There are a couple of strange object scattered around the landscape.  What are
+they for?
 
 ## License
 
