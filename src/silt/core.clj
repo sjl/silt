@@ -186,12 +186,15 @@
   ; eat shit, clojure
   (if (< n 0) (- n) n))
 
+(defn flip-colors [{:keys [fg bg]}]
+  {:fg bg :bg fg})
+
 
 ; Mysteries -------------------------------------------------------------------
 (def landmarks
   (ref (to-loc-map
          #{{:name :monolith :loc [0 0]
-            :glyph "#" :styles {:fg :black :bg :yellow}
+            :glyph "#" :styles {:fg :black :bg :cyan}
             :description "A sleek, rectangular, octarine monolith.  What is its function?"
             :action
             (fn [self]
@@ -218,6 +221,54 @@
                 (let [dest (normalize-world-coords [(inc x) y])]
                   (alter landmarks dissoc loc)
                   (alter landmarks assoc dest (assoc self :loc dest)))))}
+           {:name :amunet :loc (random-coord)
+            :glyph "ß" :styles {:fg :yellow :bg :white}
+            :description "A sandstone monument to Amunet."
+            :action
+            (fn [{[x y :as self-loc] :loc :as self}]
+              (when (= 4000 (rem @day 5000))
+                (let [{:keys [loc]} (rand-nth (vals @animals))]
+                  (alter animals assoc-in [loc :directions]
+                         [[[-1 -1] 30] [[0 -1] 1] [[1 -1] 1]
+                          [[-1  0] 30] [[0  0] 0] [[1  0] 1]
+                          [[-1  1] 30] [[0  1] 1] [[1  1] 1]])
+                  (alter landmarks update-in [self-loc :styles] flip-colors))))}
+           {:name :sunstone :loc (random-coord)
+            :glyph "O" :styles {:fg :yellow :bg :white}
+            :description "A glowing stone embedded in a rock pulses gently."
+            :action
+            (fn [{[x y :as self-loc] :loc :as self}]
+              (when (= 1000 (rem @day 5000))
+                (let [{:keys [loc]} (rand-nth (vals @animals))]
+                  (alter animals assoc-in [loc :directions]
+                         [[[-1 -1] 1] [[0 -1] 1] [[1 -1] 30]
+                          [[-1  0] 1] [[0  0] 0] [[1  0] 30]
+                          [[-1  1] 1] [[0  1] 1] [[1  1] 30]])
+                  (alter landmarks update-in [self-loc :styles] flip-colors))))}
+           {:name :magnet :loc (random-coord)
+            :glyph "M" :styles {:fg :red :bg :white}
+            :description "A strange force tugs your blood to the north."
+            :action
+            (fn [{[x y :as self-loc] :loc :as self}]
+              (when (= 2000 (rem @day 5000))
+                (let [{:keys [loc]} (rand-nth (vals @animals))]
+                  (alter animals assoc-in [loc :directions]
+                         [[[-1 -1] 30] [[0 -1] 30] [[1 -1] 30]
+                          [[-1  0] 1] [[0  0] 0] [[1  0] 1]
+                          [[-1  1] 1] [[0  1] 1] [[1  1] 1]])
+                  (alter landmarks update-in [self-loc :styles] flip-colors))))}
+           {:name :feather :loc (random-coord)
+            :glyph ")" :styles {:fg :red :bg :white}
+            :description "A single feather lies peacefully on the ground."
+            :action
+            (fn [{[x y :as self-loc] :loc :as self}]
+              (when (= 3000 (rem @day 5000))
+                (let [{:keys [loc]} (rand-nth (vals @animals))]
+                  (alter animals assoc-in [loc :directions]
+                         [[[-1 -1] 1] [[0 -1] 1] [[1 -1] 1]
+                          [[-1  0] 1] [[0  0] 0] [[1  0] 1]
+                          [[-1  1] 30] [[0  1] 30] [[1  1] 30]])
+                  (alter landmarks update-in [self-loc :styles] flip-colors))))}
            {:name :fountain :loc (random-coord)
             :glyph "ƒ" :styles {:fg :white :bg :blue}
             :description "A marble fountain burbles peacefully."
@@ -230,7 +281,10 @@
                 (alter animals
                        #(update % (:loc animal) mutate-animal 100))))}
            })))
-
+;;;                    (rr/rand-nth [";" "☃" "$" "&" "!" ":" "¥" "£" "¤" "€"
+;;;                                                      "‡" "ß" "¶" "µ" "¢" "¬"
+;;;                                                      "¿" "?" "§" "@"]))))))
+;;;
 
 ; Animals ---------------------------------------------------------------------
 (defn can-reproduce [animal]
@@ -264,8 +318,8 @@
 (defn affect-temp [animal]
   (assoc animal :temp
          (/ @world-temp
-            (:insulation animal)
-            (if (in-water animal) 5 1))))
+            (inc (:insulation animal))
+            (if (in-water animal) 10 1))))
 
 (defn fix-temp [{:keys [temp] :as animal}]
   (-> animal
