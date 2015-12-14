@@ -136,8 +136,8 @@
                        (rr/rand-nth [:white :blue :green :yellow :red])))
      (update :glyph
              (maybe (or mc 0.01) v
-                    (rr/rand-nth ["♞" "☃" "ℵ" "ℇ" "⧲" "⦼" "⨾" "∂" "∀" "€"
-                                  "₵" "★" "♞" "♟" "❣" "¿" "?" "§" "@"]))))))
+                    (rr/rand-nth [";" "☃" "$" "&" "!" ":" "¥" "£" "¤" "€"
+                                  "‡" "ß" "¶" "µ" "¢" "¬" "¿" "?" "§" "@"]))))))
 
 (defn map-vals [m f]
   (into {} (for [[k v] m]
@@ -149,6 +149,7 @@
 (defn abs [n]
   ; eat shit, clojure
   (if (< n 0) (- n) n))
+
 
 ; Mysteries -------------------------------------------------------------------
 (def landmarks
@@ -211,10 +212,14 @@
    (clone animal)])
 
 (defn try-move [orig dir]
-  (let [dest (dir-add orig dir)]
-    (if (contains? @terrain dest)
-      orig
-      dest)))
+  (if (= dir [0 0])
+    orig
+    (let [dest (dir-add orig dir)]
+      (if (or (contains? @terrain dest)
+              (contains? @landmarks dest)
+              (contains? @animals dest))
+        orig
+        dest))))
 
 
 (defn near-water [animal]
@@ -271,8 +276,7 @@
     try-reproduce))
 
 (defn tick-animals [animals]
-  (into {} (map (juxt :loc identity)
-                (mapcat tick-animal (vals animals)))))
+  (to-loc-map (mapcat tick-animal (vals animals))))
 
 
 ; World Generation ------------------------------------------------------------
