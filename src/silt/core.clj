@@ -207,9 +207,19 @@
       dest)))
 
 
+(defn near-water [animal]
+  (->> animal
+    :loc
+    neighbors
+    (map @terrain)
+    (filter identity)
+    (filter #(= (:name %) :water))
+    empty?))
+
 (defn affect-temp [animal]
   (assoc animal :temp (float (/ (Math/abs @world-temp)
-                                (inc (Math/abs (:insulation animal)))))))
+                                (inc (Math/abs (:insulation animal)))
+                                (if (near-water animal) 5 1)))))
 
 (defn fix-temp [{:keys [temp] :as animal}]
   (-> animal
@@ -312,7 +322,7 @@
                   y (rr/rand-gaussian-int oy pond-size)]]
     {:name :water
      :glyph "≈"
-     :energy 0.01
+     :energy 0.1
      :loc (normalize-world-coords [x y])
      :styles {:fg :black :bg :blue}}))
 
