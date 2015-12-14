@@ -221,37 +221,37 @@
                 (let [dest (normalize-world-coords [(inc x) y])]
                   (alter landmarks dissoc loc)
                   (alter landmarks assoc dest (assoc self :loc dest)))))}
-           {:name :amunet :loc (random-coord)
-            :glyph "ß" :styles {:fg :yellow :bg :white}
-            :description "A sandstone monument to Amunet."
-            :action
-            (fn [{[x y :as self-loc] :loc :as self}]
-              (when (= 4000 (rem @day 5000))
-                (let [{:keys [loc]} (rand-nth (vals @animals))]
-                  (alter animals assoc-in [loc :directions]
-                         [[[-1 -1] 30] [[0 -1] 1] [[1 -1] 1]
-                          [[-1  0] 30] [[0  0] 0] [[1  0] 1]
-                          [[-1  1] 30] [[0  1] 1] [[1  1] 1]])
-                  (alter landmarks update-in [self-loc :styles] flip-colors))))}
            {:name :sunstone :loc (random-coord)
             :glyph "O" :styles {:fg :yellow :bg :white}
             :description "A glowing stone embedded in a rock pulses gently."
             :action
             (fn [{[x y :as self-loc] :loc :as self}]
-              (when (= 1000 (rem @day 5000))
-                (let [{:keys [loc]} (rand-nth (vals @animals))]
+              (when (= 10000 (rem @day 50000))
+                (when-let [{:keys [loc]} (rand-nth (vals @animals))]
                   (alter animals assoc-in [loc :directions]
                          [[[-1 -1] 1] [[0 -1] 1] [[1 -1] 30]
                           [[-1  0] 1] [[0  0] 0] [[1  0] 30]
                           [[-1  1] 1] [[0  1] 1] [[1  1] 30]])
+                  (alter landmarks update-in [self-loc :styles] flip-colors))))}
+           {:name :amunet :loc (random-coord)
+            :glyph "ß" :styles {:fg :yellow :bg :white}
+            :description "A sandstone monument to Amunet."
+            :action
+            (fn [{[x y :as self-loc] :loc :as self}]
+              (when (= 20000 (rem @day 50000))
+                (when-let [{:keys [loc]} (rand-nth (vals @animals))]
+                  (alter animals assoc-in [loc :directions]
+                         [[[-1 -1] 30] [[0 -1] 1] [[1 -1] 1]
+                          [[-1  0] 30] [[0  0] 0] [[1  0] 1]
+                          [[-1  1] 30] [[0  1] 1] [[1  1] 1]])
                   (alter landmarks update-in [self-loc :styles] flip-colors))))}
            {:name :magnet :loc (random-coord)
             :glyph "M" :styles {:fg :red :bg :white}
             :description "A strange force tugs your blood to the north."
             :action
             (fn [{[x y :as self-loc] :loc :as self}]
-              (when (= 2000 (rem @day 5000))
-                (let [{:keys [loc]} (rand-nth (vals @animals))]
+              (when (= 30000 (rem @day 50000))
+                (when-let [{:keys [loc]} (rand-nth (vals @animals))]
                   (alter animals assoc-in [loc :directions]
                          [[[-1 -1] 30] [[0 -1] 30] [[1 -1] 30]
                           [[-1  0] 1] [[0  0] 0] [[1  0] 1]
@@ -262,8 +262,8 @@
             :description "A single feather lies peacefully on the ground."
             :action
             (fn [{[x y :as self-loc] :loc :as self}]
-              (when (= 3000 (rem @day 5000))
-                (let [{:keys [loc]} (rand-nth (vals @animals))]
+              (when (= 40000 (rem @day 50000))
+                (when-let [{:keys [loc]} (rand-nth (vals @animals))]
                   (alter animals assoc-in [loc :directions]
                          [[[-1 -1] 1] [[0 -1] 1] [[1 -1] 1]
                           [[-1  0] 1] [[0  0] 0] [[1  0] 1]
