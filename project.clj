@@ -1,8 +1,7 @@
-(defproject silt "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
-  :url "http://example.com/FIXME"
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+(defproject silt "0.2.0"
+  :description "You are the god of a toroidal world."
+  :url "http://bitbucket.org/sjl/silt"
+  :license {:name "MIT/X11"}
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [clojure-lanterna "0.9.5"]
                  [roul "0.2.0"]
