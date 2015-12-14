@@ -11,7 +11,7 @@ Silt is my little game for [Ludum Dare
 34](http://ludumdare.com/compo/2015/12/09/welcome-to-ludum-dare-34/).  The theme
 this time was a tie between "Growing" and "Two Button Controls".
 
-**Download ALPHA .jar:** <https://bitbucket.org/sjl/silt/downloads/silt-0.1.0-SNAPSHOT-standalone.jar>
+**Download ALPHA .jar:** <https://bitbucket.org/sjl/silt/downloads/silt-0.3.0-standalone.jar>
 
 ![Preview](http://i.imgur.com/NkEIerF.gif)
 
