@@ -23,10 +23,10 @@
 (def pond-count 100)
 (def pond-size 3)
 (def initial-energy 200.0)
-(def hunger-rate 0.1)
+(def hunger-rate 0.25)
 
-(def fruit-energy 40)
-(def fruit-rate 1)
+(def fruit-energy 50)
+(def fruit-rate 0.5)
 
 (def paused (atom false))
 (def dirty (atom true))
@@ -41,14 +41,29 @@
 (def cursor-loc (ref [0 1]))
 
 (defonce terrain (ref {}))
-(def terrain-rate 1)
-(def shrub {:name :shrub :glyph "%" :styles {:fg :green} :energy 0})
+(def terrain-rate 0.8)
+
+(def shrub {:name :shrub
+            :glyph "%"
+            :styles {:fg :green}
+            :energy 0
+            :solid true})
+(def rock {:name :rock
+           :glyph "*"
+           :energy 0
+           :solid true})
+(def water {:name :water
+            :glyph "≈"
+            :energy 0.05
+            :solid false
+            :styles {:fg :black :bg :blue}})
+
 (def terrain-objects
-  {{:name :rock :glyph "*" :energy 0} 20
-   shrub 80})
+  {water 1 rock 20 shrub 80})
 
 
 (def world-temp (ref 0))
+(def clone-energy 100)
 (def reproduction-rate 10)
 
 (def animals (ref {}))
@@ -135,7 +150,7 @@
                 (maybe (or mc 0.8) v
                        (rr/rand-nth [:white :blue :green :yellow :red])))
      (update :glyph
-             (maybe (or mc 0.01) v
+             (maybe (or mc 0.05) v
                     (rr/rand-nth [";" "☃" "$" "&" "!" ":" "¥" "£" "¤" "€"
                                   "‡" "ß" "¶" "µ" "¢" "¬" "¿" "?" "§" "@"]))))))
 
@@ -145,6 +160,22 @@
 
 (defn to-loc-map [coll]
   (into {} (map (juxt :loc identity) coll)))
+
+(defn to-loc-map-safe [coll]
+  (loop [next-thing (first coll)
+         remaining (rest coll)
+         result (transient {})]
+    (if next-thing
+      (let [loc (:loc next-thing)]
+        (if (result loc)
+          (recur (assoc next-thing
+                        :loc (dir-add loc (rand-nth directions)))
+                 remaining
+                 result)
+          (recur (first remaining)
+                 (rest remaining)
+                 (assoc! result loc next-thing))))
+      (persistent! result))))
 
 (defn abs [n]
   ; eat shit, clojure
@@ -198,40 +229,38 @@
 
 ; Animals ---------------------------------------------------------------------
 (defn can-reproduce [animal]
-  (> (:energy animal) 100))
+  (> (:energy animal) 150))
 
 (defn clone [animal]
   (-> animal
     (assoc :id (uuid))
-    (assoc :energy 60)
+    (assoc :energy clone-energy)
     (update :loc (fn [[x y]] (normalize-world-coords [(inc x) y])))
     mutate-animal))
 
 (defn reproduce [animal]
-  [(update animal :energy - 60)
+  [(update animal :energy - clone-energy)
    (clone animal)])
 
 (defn try-move [orig dir]
   (if (= dir [0 0])
     orig
     (let [dest (dir-add orig dir)]
-      (if (or (contains? @terrain dest)
+      (if (or (get-in @terrain [dest :solid])
               (contains? @landmarks dest)
               (contains? @animals dest))
         orig
         dest))))
 
 
-(defn near-water [animal]
-  (->> (neighboring-things animal @terrain)
-    (filter #(= (:name %) :water))
-    empty?))
+(defn in-water [{:keys [loc]}]
+  (= :water (get-in @terrain [loc :name])))
 
 (defn affect-temp [animal]
   (assoc animal :temp
          (/ @world-temp
             (:insulation animal)
-            (if (near-water animal) 5 1))))
+            (if (in-water animal) 5 1))))
 
 (defn fix-temp [{:keys [temp] :as animal}]
   (-> animal
@@ -276,7 +305,7 @@
     try-reproduce))
 
 (defn tick-animals [animals]
-  (to-loc-map (mapcat tick-animal (vals animals))))
+  (to-loc-map-safe (mapcat tick-animal (vals animals))))
 
 
 ; World Generation ------------------------------------------------------------
@@ -321,11 +350,7 @@
   (for [_ (range 200)
             :let [x (rr/rand-gaussian-int ox (* pond-size 1.5))
                   y (rr/rand-gaussian-int oy pond-size)]]
-    {:name :water
-     :glyph "≈"
-     :energy 0.1
-     :loc (normalize-world-coords [x y])
-     :styles {:fg :black :bg :blue}}))
+    (assoc water :loc (normalize-world-coords [x y]))))
 
 (defn generate-water []
   (->> (for [_ (range pond-count)]
