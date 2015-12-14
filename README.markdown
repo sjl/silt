@@ -62,8 +62,8 @@ temperature.  If the world is hotter or colder than they are, they need to spend
 energy to maintain their temperature (think sweating or burning calories to warm
 up).
 
-Being near water helps creatures regulate their temperature a bit.  They might
-evolve to take advantage of this.
+Being in water helps creatures regulate their temperature.  Some might evolve to
+take advantage of this.
 
 Creatures have an insulation rating that affects how fast or slow they exchange
 heat to/from the environment (think different amounts of fur or skin).
