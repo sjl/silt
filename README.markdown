@@ -74,8 +74,8 @@ in a certain direction, etc).
 
 ## Mysteries
 
-There are a couple of strange object scattered around the landscape.  What are
-they for?
+There are eight mysterious objects scattered across the planet.  What are they
+for?
 
 ## License
 
