@@ -13,8 +13,12 @@
 (def world-width 600)
 (def world-height 400)
 (def tick-delay (atom 50))
-(def age-effect 300)
 (def insulation-cost 0.01)
+
+(def screen-size (atom [0 0]))
+(defn handle-resize [cols rows]
+  (reset! screen-size [cols rows]))
+(def screen (s/get-screen :swing {:resize-listener handle-resize}))
 
 (def pond-count 100)
 (def pond-size 3)
@@ -31,7 +35,6 @@
                  [-1  0] [ 0  0] [ 1  0]
                  [-1  1] [ 0  1] [ 1  1]])
 
-(def screen (s/get-screen :swing))
 (defonce running (atom true))
 (def window-loc (ref [0 0]))
 (defonce last-timestamp (atom 0))
@@ -55,7 +58,6 @@
    :styles {:fg :white}
    :temp 0
    :insulation 0
-   :age 0
    :energy initial-energy
    :id "eve"
    :directions [[[-1 -1] 2] [[0 -1] 1] [[1 -1] 2]
@@ -92,10 +94,6 @@
        (do ~@body)
        ~value)))
 
-(defn manhattan [[x y] [x1 y1]]
-  (+ (Math/abs (- x x1))
-     (Math/abs (- y y1))))
-
 (defmacro maybe-update-in [test-form m key-vec & body]
   `(if ~test-form
      (update-in ~m ~key-vec ~@body)
@@ -107,11 +105,21 @@
 (defn neighbors [coord]
   (map (partial dir-add coord) directions))
 
+(defn neighboring-things [thing things]
+  (->> thing
+    :loc
+    neighbors
+    (map things)
+    (filter identity)))
+
 (defn uuid []
   (str (java.util.UUID/randomUUID)))
 
 (defn mutate-directions [dirs]
   (update-in dirs [(rr/rand-int 0 9) 1] inc))
+
+(defn clamp [v minimum]
+  (max v minimum))
 
 (defn mutate-animal
   ([animal] (mutate-animal animal nil))
@@ -119,7 +127,7 @@
    (-> animal
      (update :insulation
              (maybe (or mc 10) v
-                    (+ v (rand-nth [-1 1]))))
+                    (clamp (+ v (rand-nth [-1 1])) 1)))
      (update :directions
              (maybe (or mc 20) v
                     (mutate-directions v)))
@@ -138,6 +146,9 @@
 (defn to-loc-map [coll]
   (into {} (map (juxt :loc identity) coll)))
 
+(defn abs [n]
+  ; eat shit, clojure
+  (if (< n 0) (- n) n))
 
 ; Mysteries -------------------------------------------------------------------
 (def landmarks
@@ -191,7 +202,6 @@
 (defn clone [animal]
   (-> animal
     (assoc :id (uuid))
-    (assoc :age 0)
     (assoc :energy 60)
     (update :loc (fn [[x y]] (normalize-world-coords [(inc x) y])))
     mutate-animal))
@@ -208,44 +218,30 @@
 
 
 (defn near-water [animal]
-  (->> animal
-    :loc
-    neighbors
-    (map @terrain)
-    (filter identity)
+  (->> (neighboring-things animal @terrain)
     (filter #(= (:name %) :water))
     empty?))
 
 (defn affect-temp [animal]
-  (assoc animal :temp (float (/ (Math/abs @world-temp)
-                                (inc (Math/abs (:insulation animal)))
-                                (if (near-water animal) 5 1)))))
+  (assoc animal :temp
+         (/ @world-temp
+            (:insulation animal)
+            (if (near-water animal) 5 1))))
 
 (defn fix-temp [{:keys [temp] :as animal}]
   (-> animal
     (assoc :temp 0)
-    (update :energy - (* 0.1 (Math/abs temp)))))
+    (update :energy - (* 0.1 (abs temp)))))
 
-(defn find-resources [{:keys [loc] :as animal}]
-  (let [found (->> loc
-                neighbors
-                (map terrain)
-                (filter identity)
-                (map :energy)
-                (reduce +))]
-    (update animal :energy + found)))
+(defn find-resources [animal]
+  (let [found (->> (neighboring-things animal @terrain)
+                (map :energy))]
+    (update animal :energy (partial reduce +) found)))
 
 (defn wander [animal]
   (update animal :loc
           try-move
           (rr/rand-nth-weighted (:directions animal))))
-
-(defn age [animal]
-  (let [{:keys [age] :as animal} (update animal :age inc)]
-    (if (and (> age 50)
-             (rr/rand-bool (inc (/ (:age animal) age-effect))))
-      []
-      [animal])))
 
 (defn hunger [{:keys [insulation] :as animal}]
   (update animal :energy - (+ hunger-rate
@@ -272,7 +268,6 @@
     find-resources
     hunger
     starve
-    ; age
     try-reproduce))
 
 (defn tick-animals [animals]
@@ -281,22 +276,24 @@
 
 
 ; World Generation ------------------------------------------------------------
+(defn grow-shrub [shrub]
+  (assoc shrub
+         :energy fruit-energy
+         :styles {:fg :magenta}))
+
+(defn strip-shrub [shrub]
+  (assoc shrub
+         :energy 0
+         :styles {:fg :green}))
+
 (defn tick-shrub [shrub]
-  (if (rr/rand-bool fruit-rate)
-    (-> shrub
-      (assoc-in [:energy] fruit-energy)
-      (assoc-in [:styles :fg] :magenta))
-    (let [animals @animals]
-      (if (->> shrub
-            :loc
-            neighbors
-            (map animals)
-            (filter identity)
-            empty?)
-        shrub
-        (-> shrub
-          (assoc-in [:energy] 0)
-          (assoc-in [:styles :fg] :green))))))
+  (if (zero? (:energy shrub))
+    (if (rr/rand-bool fruit-rate)
+      (grow-shrub shrub)
+      shrub)
+    (if (empty? (neighboring-things shrub @animals))
+      shrub
+      (strip-shrub shrub))))
 
 (defn tick-terrain [terrain]
   (into {} (for [[loc {:keys [name] :as obj}] terrain]
@@ -372,16 +369,21 @@
   (let [[ox oy] @window-loc]
     (normalize-world-coords [(+ sx ox) (+ sy oy)])))
 
+(defmacro loop-screen [sx sy wc & body]
+  `(let [[swidth# sheight#] @screen-size]
+    (doseq [~sx (range swidth#)
+            ~sy (range sheight#)
+            :let [~wc (calc-world-coords [~sx ~sy])]]
+      ~@body)))
+
 (defn draw-terrain! [screen]
-  (let [[swidth sheight] (s/get-size screen)]
-    (doseq [{:keys [loc glyph styles]} (vals @terrain)
-            :let [[sx sy] (calc-screen-coords loc)]
-            :when (and (< -1 sx swidth)
-                       (< -1 sy sheight))]
-      (s/put-string screen sx sy glyph styles))))
+  (loop-screen
+    sx sy wc
+    (when-let [thing (@terrain wc)]
+      (s/put-string screen sx sy (:glyph thing) (:styles thing)))))
 
 (defn draw-landmarks! [screen]
-  (let [[swidth sheight] (s/get-size screen)]
+  (let [[swidth sheight] @screen-size]
     (doseq [{:keys [loc glyph styles]} (vals @landmarks)
             :let [[sx sy] (calc-screen-coords loc)]
             :when (and (< -1 sx swidth)
@@ -389,7 +391,7 @@
       (s/put-string screen sx sy glyph styles))))
 
 (defn draw-animals! [screen]
-  (let [[swidth sheight] (s/get-size screen)]
+  (let [[swidth sheight] @screen-size]
     (doseq [{:keys [loc glyph styles]} (vals @animals)
             :let [[sx sy] (calc-screen-coords loc)]
             :when (and (< -1 sx swidth)
@@ -397,10 +399,10 @@
       (s/put-string screen sx sy glyph styles))))
 
 (defn from-right [screen n]
-  (- (nth (s/get-size screen) 0) n))
+  (- (nth @screen-size 0) n))
 
 (defn from-bottom [screen n]
-  (- (nth (s/get-size screen) 1) n))
+  (- (nth @screen-size 1) n))
 
 (defn draw-landmark-description! [screen]
   (when-let [lm (@landmarks (calc-world-coords @cursor-loc))]
@@ -570,6 +572,7 @@
   (future (tick-loop))
   (s/in-screen
     screen
+    (apply handle-resize (s/get-size screen))
     (while @running
       (draw-screen! screen)
       (handle-input! screen)
@@ -587,7 +590,7 @@
   (reset-window!)
   (reset-terrain!)
   (reset-animals!)
-
+  (set! *warn-on-reflection* true)
   (future (main-loop))
 
   )
