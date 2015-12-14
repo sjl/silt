@@ -1,6 +1,7 @@
 (ns silt.core
   (:require [lanterna.screen :as s]
             [roul.random :as rr]
+            [clojure.pprint]
             [clojure.core.match :refer [match]]
             [clojure.stacktrace :refer [print-stack-trace]])
   (:gen-class))
@@ -405,10 +406,10 @@
     (commute cursor-loc
              #(let [[x y] %1]
                 (case %2
-                  \k [x (- y 1)]
-                  \j [x (+ y 1)]
-                  \h [(- x 1) y]
-                  \l [(+ x 1) y]))
+                  (\w \k) [x (- y 1)]
+                  (\s \j) [x (+ y 1)]
+                  (\a \h) [(- x 1) y]
+                  (\d \l) [(+ x 1) y]))
              key))
   (mark-dirty!))
 
@@ -484,7 +485,7 @@
       (:up :down :left :right)
       (move-window! key 10)
 
-      (\h \j \k \l)
+      (\h \j \k \l \w \a \s \d)
       (move-cursor! key)
 
       \space
@@ -499,7 +500,7 @@
       (\- \_)
       (update-temperature! -1)
 
-      \r
+      \R
       (reset-world!)
 
       nil)))
@@ -539,10 +540,8 @@
 
 
 ; Scratch ---------------------------------------------------------------------
-(defn -main
-  "I don't do a whole lot ... yet."
-  [& args]
-  (println "Hello, World!"))
+(defn -main [& args]
+  (main-loop))
 
 (comment
   (reset! running false)
