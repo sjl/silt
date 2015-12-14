@@ -11,7 +11,9 @@ Silt is my little game for [Ludum Dare
 34](http://ludumdare.com/compo/2015/12/09/welcome-to-ludum-dare-34/).  The theme
 this time was a tie between "Growing" and "Two Button Controls".
 
-![Preview](https://i.imgur.com/oTXGd2z.gif)
+**Download ALPHA .jar:** <https://bitbucket.org/sjl/silt/downloads/silt-0.1.0-SNAPSHOT-standalone.jar>
+
+![Preview](http://i.imgur.com/NkEIerF.gif)
 
 ## What is it?
 
@@ -22,6 +24,10 @@ What you choose to do is up to you.  There's no set goal.  If you're feeling
 generous, help the creatures prosper and thrive.  Or change the environment to
 guide their evolution in a particular direction.  Or maybe you're a vengeful god
 and want to destroy all life.
+
+## Interface
+
+![UI Preview](http://i.imgur.com/t87cVC8.png)
 
 ## Controls
 
@@ -44,6 +50,7 @@ options:
 
 * **`+`** make the world one degree hotter.
 * **`-`** make the world one degree colder.
+
 
 ## Game Mechanics
 
